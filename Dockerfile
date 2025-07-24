@@ -1,30 +1,32 @@
-# Use an official Maven image with JDK 17
-FROM maven:3.9.9-eclipse-temurin-17 AS builder
+# Stage 1: Build with Maven and JDK 8
+FROM maven:3.9.6-eclipse-temurin-8 as builder
 
-# Set environment variables
+# Avoid interactive apt installs
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set environment variables to skip javadoc
 ENV MAVEN_OPTS="-Dmaven.javadoc.skip=true"
 
-# Set working directory
-WORKDIR /usr/src/app
+# Set the working directory
+WORKDIR /app
 
 # Copy Maven project files
 COPY . .
 
-# Download dependencies and build the plugin
+# Build the plugin and skip javadoc generation
 RUN mvn clean install -Dmaven.javadoc.skip=true
 
-# -----------------------------------------------------------------------------
-# Runtime image (optional, if you want to keep just the HPI plugin artifact)
-# -----------------------------------------------------------------------------
-FROM debian:bullseye-slim AS runtime
+# Stage 2: Slim runtime image to extract the .hpi
+FROM debian:bullseye-slim
 
-# Install unzip in case you want to inspect plugin contents
+# Install minimal tools (optional)
 RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
 
-# Copy the built plugin from the builder image
-COPY --from=builder /usr/src/app/target/*.hpi /plugin/pipeline-githubnotify-step.hpi
-
-# Default working directory
+# Create plugin directory
 WORKDIR /plugin
 
-CMD ["ls", "-l", "/plugin"]
+# Copy the built plugin from the builder stage
+COPY --from=builder /app/target/*.hpi /plugin/
+
+# Default command just lists the plugin
+CMD ["ls", "-lh", "/plugin"]
